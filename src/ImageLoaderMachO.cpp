@@ -1685,7 +1685,7 @@ const ImageLoader::Symbol* ImageLoaderMachO::findExportedSymbol(const char* name
 		for(unsigned int i=0; i < libraryCount(); ++i){
 			if ( libReExported(i) ) {
 				ImageLoader* image = libImage(i);
-				if ( image != NULL ) {
+				if ( image != NULL && image != this ) {
 					const char* reExPath = libPath(i);
 					result = image->findExportedSymbol(name, searchReExports, reExPath, foundIn);
 					if ( result != NULL )

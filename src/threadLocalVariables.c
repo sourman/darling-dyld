@@ -33,6 +33,8 @@
 #include <malloc/malloc.h>
 #include <mach-o/loader.h>
 #include <libkern/OSAtomic.h>
+#include <mach/mach.h>
+#include <mach/vm_map.h>
 
 #include <mach-o/dyld_priv.h>
 
@@ -177,8 +179,16 @@ void* tlv_allocate_and_initialize_for_key(pthread_key_t key)
     if ( size == 0 )
         return NULL;
 	
-	// allocate buffer and fill with template
-	void* buffer = malloc(size);
+	// allocate buffer with vm_allocate, not process malloc (PartitionAlloc).
+	// Header page holds the total vm size so tlv_free can deallocate without
+	// shifting TLV offsets.
+	const vm_size_t page = 0x1000;
+	vm_size_t vm_size = ((size + page - 1) & ~(page - 1)) + page;
+	vm_address_t addr = 0;
+	if ( vm_allocate(mach_task_self(), &addr, vm_size, VM_FLAGS_ANYWHERE) != KERN_SUCCESS )
+		return NULL;
+	*(vm_size_t*)addr = vm_size;
+	void* buffer = (void*)(addr + page);
 	memcpy(buffer, start, size);
 	
 	// set this thread's value for key to be the new buffer.
@@ -215,7 +225,12 @@ void* tlv_allocate_and_initialize_for_key(pthread_key_t key)
 static void
 tlv_free(void *storage)
 {
-	free(storage);
+	if ( storage == NULL )
+		return;
+	const vm_size_t page = 0x1000;
+	vm_address_t base = (vm_address_t)storage - page;
+	vm_size_t vm_size = *(vm_size_t*)base;
+	vm_deallocate(mach_task_self(), base, vm_size);
 }
 
 
