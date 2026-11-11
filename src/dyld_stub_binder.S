@@ -124,10 +124,11 @@ dyld_stub_binder_:
     .globl dyld_stub_binder
 dyld_stub_binder:
 	pushq		%rbp
-	test		$0xF,%rsp				# at this point stack should be 16-byte aligned
-	jne			_stack_not_16_byte_aligned_error
 	movq		%rsp,%rbp
-	subq		$STATIC_STACK_SIZE,%rsp
+	test		$0xF,%rsp				# tail calls arrive with rsp%16 == 8
+	je		1f
+	subq		$8,%rsp				# align locals; frame stays rbp-relative
+1:	subq		$STATIC_STACK_SIZE,%rsp
 	movq		%rdi,RDI_SAVE_RBP(%rbp)	# save registers that might be used as parameters
 	movq		%rsi,RSI_SAVE_RBP(%rbp)
 	movq		%rdx,RDX_SAVE_RBP(%rbp)
